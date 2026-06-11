@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Dead Man's Switch</title>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            body {
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: #070B14;
+                color: #E2E8F0;
+                min-height: 100vh;
+                padding: 32px 24px;
+                background-image: 
+                radial-gradient(ellipse at 20% 20%, rgba(14, 165, 233, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(56, 189, 248, 0.04) 0%, transparent 50%);
+            }
+
+            h1 {
+                text-align: center;
+                font-size: 2rem;
+                font-weight: 700;
+                letter-spacing: 0.05em;
+                background: linear-gradient(135deg, #38BDF8, #7DD3FC, #BAE6FD);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                margin-bottom: 36px;
+                text-transform: uppercase;
+            }
+
+            .panels {
+                display: flex;
+                gap: 20px;
+                flex-wrap: wrap;
+                align-items: flex-start;
+            }
+
+            .panel {
+                background: linear-gradient(160deg, #0F1829 0%, #0D1520 100%);
+                border: 1px solid rgba(56, 189, 248, 0.15);
+                border-radius: 16px;
+                padding: 24px;
+                flex: 1;
+                        min-width: 280px;
+                box-shadow: 
+                    0 4px 24px rgba(0, 0, 0, 0.4),
+                    inset 0 1px 0 rgba(56, 189, 248, 0.08);
+                transition: border-color 0.3s ease, box-shadow 0.3s ease;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .panel::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.5), transparent);
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+
+            .panel:hover {
+                border-color: rgba(56, 189, 248, 0.3);
+                box-shadow: 
+                    0 8px 32px rgba(0, 0, 0, 0.5),
+                    0 0 24px rgba(56, 189, 248, 0.06),
+                    inset 0 1px 0 rgba(56, 189, 248, 0.12);
+            }
+
+            .panel:hover::before {
+                opacity: 1;
+            }
+
+            h2 {
+                color: #38BDF8;
+                font-size: 1.1rem;
+                font-weight: 600;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                margin-bottom: 20px;
+                padding-bottom: 12px;
+                border-bottom: 1px solid rgba(56, 189, 248, 0.15);
+            }
+
+            h3 {
+                color: #7DD3FC;
+                font-size: 0.75rem;
+                font-weight: 600;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                margin: 20px 0 10px 0;
+                opacity: 0.8;
+            }
+
+            hr {
+                border: none;
+                border-top: 1px solid rgba(56, 189, 248, 0.08);
+                margin: 16px 0;
+            }
+
+            button {
+                background: linear-gradient(135deg, #0369A1, #0284C7);
+                color: #F0F9FF;
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                padding: 10px 16px;
+                border-radius: 8px;
+                cursor: pointer;
+                margin: 6px 0;
+                width: 100%;
+                font-size: 0.875rem;
+                font-weight: 500;
+                letter-spacing: 0.03em;
+                transition: all 0.2s ease;
+                position: relative;
+                overflow: hidden;
+            }
+
+            button::after {
+                content: '';
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 0;
+                height: 0;
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 50%;
+                transform: translate(-50%, -50%);
+                transition: width 0.4s ease, height 0.4s ease, opacity 0.4s ease;
+                opacity: 0;
+            }
+
+            button:hover {
+                background: linear-gradient(135deg, #0284C7, #38BDF8);
+                border-color: rgba(56, 189, 248, 0.6);
+                box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+                transform: translateY(-1px);
+            }
+
+            button:hover::after {
+                width: 300px;
+                height: 300px;
+                opacity: 1;
+            }
+
+            button:active {
+                transform: translateY(0px);
+                box-shadow: none;
+            }
+
+            button:disabled {
+                background: #1E293B;
+                border-color: rgba(100, 116, 139, 0.2);
+                color: #475569;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
+            }
+
+            button#connectBtn {
+                background: linear-gradient(135deg, #164E63, #0E7490);
+                border-color: rgba(56, 189, 248, 0.4);
+                font-weight: 600;
+                padding: 12px;
+                animation: pulse-glow 3s ease-in-out infinite;
+            }
+
+            button#connectBtn:hover {
+                animation: none;
+                background: linear-gradient(135deg, #0E7490, #38BDF8);
+                box-shadow: 0 0 24px rgba(56, 189, 248, 0.4);
+            }
+
+            @keyframes pulse-glow {
+                0%, 100% {
+                    box-shadow: 0 0 8px rgba(56, 189, 248, 0.2);
+                }
+                50% {
+                    box-shadow: 0 0 20px rgba(56, 189, 248, 0.5), 0 0 40px rgba(56, 189, 248, 0.15);
+                }
+            }
+
+            button#cancelBtn {
+                background: linear-gradient(135deg, #7F1D1D, #991B1B);
+                border-color: rgba(239, 68, 68, 0.3);
+                color: #FCA5A5;
+            }
+
+            button#cancelBtn:hover {
+                background: linear-gradient(135deg, #991B1B, #DC2626);
+                border-color: rgba(239, 68, 68, 0.6);
+                box-shadow: 0 0 16px rgba(239, 68, 68, 0.3);
+            }
+
+            button#claimBtn:not(:disabled) {
+                background: linear-gradient(135deg, #14532D, #15803D);
+                border-color: rgba(34, 197, 94, 0.4);
+                color: #86EFAC;
+                animation: pulse-green 2s ease-in-out infinite;
+            }
+
+            @keyframes pulse-green {
+                0%, 100% {
+                    box-shadow: 0 0 8px rgba(34, 197, 94, 0.2);
+                }
+                50% {
+                    box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
+                }
+            }
+
+            input {
+                width: 100%;
+                padding: 10px 14px;
+                margin: 5px 0;
+                border-radius: 8px;
+                border: 1px solid rgba(56, 189, 248, 0.15);
+                background: rgba(7, 11, 20, 0.8);
+                color: #E2E8F0;
+                font-size: 0.875rem;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            }
+
+            input::placeholder {
+                color: #334155;
+            }
+
+            input:focus {
+                outline: none;
+                border-color: rgba(56, 189, 248, 0.5);
+                box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.08);
+            }
+
+            .status {
+                padding: 12px 16px;
+                border-radius: 8px;
+                margin: 12px 0;
+                text-align: center;
+                font-weight: 600;
+                font-size: 0.875rem;
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+                border: 1px solid transparent;
+            }
+
+            .active {
+                background: rgba(20, 83, 45, 0.4);
+                border-color: rgba(34, 197, 94, 0.3);
+                color: #86EFAC;
+                animation: status-pulse-green 3s ease-in-out infinite;
+            }
+
+            @keyframes status-pulse-green {
+                0%, 100% { box-shadow: 0 0 8px rgba(34, 197, 94, 0.1); }
+                50% { box-shadow: 0 0 16px rgba(34, 197, 94, 0.3); }
+            }
+
+            .graceperiod {
+                background: rgba(120, 53, 15, 0.4);
+                border-color: rgba(251, 146, 60, 0.3);
+                color: #FED7AA;
+                animation: status-pulse-orange 2s ease-in-out infinite;
+            }
+
+            @keyframes status-pulse-orange {
+                0%, 100% { box-shadow: 0 0 8px rgba(251, 146, 60, 0.1); }
+                50% { box-shadow: 0 0 20px rgba(251, 146, 60, 0.4); }
+            }
+
+            .triggered {
+                background: rgba(127, 29, 29, 0.4);
+                border-color: rgba(239, 68, 68, 0.3);
+                color: #FCA5A5;
+                animation: status-pulse-red 1.5s ease-in-out infinite;
+            }
+
+            @keyframes status-pulse-red {
+                0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.1); }
+                50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+            }
+
+            p {
+                font-size: 0.875rem;
+                color: #94A3B8;
+                margin: 8px 0;
+                line-height: 1.5;
+            }
+
+            #walletAddress {
+                font-size: 0.8rem;
+                color: #38BDF8;
+                font-family: monospace;
+                background: rgba(56, 189, 248, 0.06);
+                padding: 6px 10px;
+                border-radius: 6px;
+                border: 1px solid rgba(56, 189, 248, 0.1);
+            }
+
+            #countdown {
+                font-size: 0.9rem;
+                color: #7DD3FC;
+                font-weight: 500;
+            }
+
+            #switchList div, #switchesList div {
+                transition: background 0.2s ease, transform 0.2s ease;
+            }
+
+            #switchList div:hover, #switchesList div:hover {
+                background: #164E63 !important;
+                transform: translateX(4px);
+            }
+        </style>
+    </head>
+
+    <body>
+        <h1 style="text-align: center; color: #e94560;">Dead Man's Switch</h1>
+        <div class="panels">
+
+            <div class="panel">
+                <h2>Owner Panel</h2>
+                <button id="connectBtn">Connect Wallet</button>
+                <p id="walletAddress">Not connected</p>
+                <div id="status" class="status">Status: Unknown</div>
+                <p id="countdown">Time Remaining: --</p>
+                <hr>
+                <h3>Check In</h3>
+                <button id="checkInBtn">Check In</button>
+                <hr>
+                <h3>Deposit ETH</h3>
+                <input type="number" id="depositAmount" placeholder="Amount in ETH"/>
+                <button id="depositBtn">Deposit</button>
+                <hr>
+                <h3>Add Beneficiary</h3>
+                <input type="text" id="beneficiaryAddress" placeholder="Wallet Address"/>
+                <input type="number" id="beneficiaryShare" placeholder="Share%"/>
+                <button id="addBeneficiaryBtn">Add Beneficiary</button>
+                <hr>
+                <h3>Remove Beneficiary</h3>
+                <input type="text" id="removebeneficiaryAddress" placeholder="Wallet Address"/>
+                <button id="removeBeneficiaryBtn">Remove Beneficiary</button>
+                <hr>
+                <h3>Cancel Switch</h3>
+                <button id="cancelBtn">Cancel Switch</button>
+            </div>
+
+            <div class="panel">
+                <h2>Beneficiary Panel</h2>
+                <input type="text" id="contractAddress" placeholder="Enter Contract Address"/>
+                <button id="lookupBtn">Look Up</button> 
+                <div id="beneficiaryStatus"></div>
+                <p id="timeRemaining">Time Remaining: --</p>
+                <p id="sharePercent">Share%= --</p>
+                <p id="estimatedETH">Estimated ETH= --</p>
+                <button id="claimBtn" disabled>Claim (not yet available)</button>
+            </div>
+
+            <div class="panel">
+                <h2>Factory Panel</h2>
+                <h3>Deploy New Switch</h3>
+                <input type="number" id="intervalInput" placeholder="Check-in Interval(seconds)"/>
+                <input type="number" id="graceInput" placeholder="Grace Period(seconds)"/>
+                <button id="deployBtn">Deploy New Switch</button>
+                <hr>
+                <h3>Your Switches</h3>
+                <button id="listSwitchesBtn">List My Switches</button>
+                <div id="switchList"></div>
+            </div>
+        </div>
+        <script>
+        const SWITCH_ADDRESS = "0x26eaCe350b0304Ce9820B9E0E8f15453AC9C1319";
+        const FACTORY_ADDRESS = "0xE7A42A30Cd6714e91CF0a1f077D27ADf0045c271";
+
+         const SWITCH_ABI= [
+             "function checkIn() external",
+            "function deposit(address token, uint256 amount) external payable",
+            "function addBeneficiary(address wallet, uint256 share) external",
+            "function removeBeneficiary(address wallet) external",
+            "function triggerGracePeriod() external",
+            "function claim() external",
+            "function cancel() external",
+            "function status() external view returns (uint8)",
+            "function lastCheckIn() external view returns (uint256)",
+            "function checkInInterval() external view returns (uint256)",
+            "function gracePeriod() external view returns (uint256)",
+            "function beneficiaries(uint256) external view returns (address wallet, uint256 sharePercent)"
+         ]
+          const FACTORY_ABI = [
+        "function createSwitch(uint256 checkInInterval, uint256 gracePeriod) external",
+        "function getSwitchesByOwner(address owner) external view returns (address[])"
+    ];
+
+    let provider, signer, switchContract, factoryContract;
+    let countdownInterval;
+    const STATUS_LABELS = ["Active", "Grace Period", "Triggered", "Cancelled"];
+    const STATUS_CLASSES = ["active", "graceperiod", "triggered", "triggered"];
+
+    async function connectWallet() {
+    try {
+        if (!window.ethereum) {
+            alert("Please install MetaMask!");
+            return;
+        }
+        provider = new ethers.BrowserProvider(window.ethereum);
+        signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        
+        document.getElementById("walletAddress").textContent = 
+            "Connected: " + address.slice(0,6) + "..." + address.slice(-4);
+        document.getElementById("connectBtn").textContent = "Connected ✅";
+        
+        switchContract = new ethers.Contract(SWITCH_ADDRESS, SWITCH_ABI, signer);
+        factoryContract = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+        
+        startStatusUpdates();
+    } catch(err) {
+        alert("Error connecting: " + err.message);
+    }
+}
+
+    async function startStatusUpdates(){
+        await updateStatus();
+        countdownInterval=setInterval(updateStatus, 5000);
+    }
+
+    async function updateStatus() {
+        try{
+            const status=await switchContract.status();
+            const lastCheckIn=await switchContract.lastCheckIn();
+            const interval=await switchContract.checkInInterval();
+            const grace=await switchContract.gracePeriod();
+            const statusE1=document.getElementById("status");
+            statusE1.textContent="Status: "+STATUS_LABELS[status];
+            statusE1.className="status "+STATUS_CLASSES[status];
+
+            const now=Math.floor(Date.now()/1000);
+            const deadline=Number(lastCheckIn) + Number(interval);
+            const timeLeft=deadline-now;
+            if(timeLeft>0){
+                document.getElementById("countdown").textContent="Time Remaining= "+formatTime(timeLeft);
+            }else{
+                document.getElementById("countdown").textContent= "Check-In Overdue";
+            }
+        }catch(err){
+            console.error("Status Update Error: ", err);
+        }
+    }
+
+    function formatTime(seconds){
+        const h=Math.floor(seconds/3600);
+        const m=Math.floor((seconds%3600)/60);
+        const s=Math.floor(seconds%60);
+        return `${h}h ${m}m ${s}s`;
+    }
+
+    async function checkIn(){
+        try{
+            const tx=await switchContract.checkIn();
+            await tx.wait();
+            alert("Checked In Successfully");
+            await updateStatus();
+        }catch(err){
+            alert("Error: " + err.message);
+        }
+    }
+
+    async function depositETH(){
+        try{
+            const amount=document.getElementById("depositAmount").value;
+            const amountWei=ethers.parseEther(amount);
+            const tx=await switchContract.deposit(ethers.ZeroAddress, amountWei, {value: amountWei});
+            await tx.wait();
+            alert("Deposited "+amount+" ETH successfully!!");
+        }catch(err){
+            alert("Error: "+err.message);
+        }
+    }
+
+    async function addBeneficiary(){
+        try{
+            const wallet = document.getElementById("beneficiaryAddress").value;
+            const share = document.getElementById("beneficiaryShare").value;
+            const tx = await switchContract.addBeneficiary(wallet, share);
+            await tx.wait();
+            alert("Beneficiary added successfully"); 
+        }catch(err){
+            alert("Error: "+err.message);
+        }
+    }
+
+    async function removeBeneficiary(){
+        try{
+        const wallet = document.getElementById("removebeneficiaryAddress").value;
+        const tx = await switchContract.removeBeneficiary(wallet);
+        await tx.wait();
+        alert("Beneficiary removed successfully");
+        }catch(err){
+            alert("Error: "+err.message);
+        }
+    }
+
+    async function cancelSwitch(){
+        try{
+            const confirm=window.confirm("Are you sure you want to cancel this? This will withdraw all funds.");
+            if(!confirm) return;
+            const tx = await switchContract.cancel();
+            await tx.wait();
+            alert("Switch cancelled successfully");
+            await updateStatus();
+        }catch(err){
+            alert("Error: "+err.message);
+        }
+    }
+
+    async function lookupContract(){
+        try{
+            const address = document.getElementById("contractAddress").value;
+            const tempContract = new ethers.Contract(address, SWITCH_ABI, provider);
+            const status = await tempContract.status();
+            const lastCheckIn = await tempContract.lastCheckIn();
+            const interval = await tempContract.checkInInterval();
+            const grace = await tempContract.gracePeriod();
+            const now = Math.floor(Date.now()/1000);
+            const claimTime = Number(lastCheckIn)+Number(interval)+Number(grace);
+            const timeLeft = claimTime-now;
+            document.getElementById("beneficiaryStatus").textContent="Status: "+STATUS_LABELS[status];
+
+            if(timeLeft>0){
+                document.getElementById("timeRemaining").textContent="Time until claimable: "+formatTime(timeLeft);
+                document.getElementById("claimBtn").disabled=true;
+                document.getElementById("claimBtn").textContent="Claim (not yet available)";
+            }else if(status==1){
+                document.getElementById("timeRemaining").textContent="Claimable Now";
+                document.getElementById("claimBtn").disabled=false;
+                document.getElementById("claimBtn").textContent="Claim funds now!!";
+            }
+        }catch(err){
+            alert("Error: "+err.message);
+        }
+    }
+
+    async function claimFunds(){
+        try{
+        const address = document.getElementById("contractAddress").value;
+        const tempContract = new ethers.Contract(address, SWITCH_ABI, signer);
+        const tx = await tempContract.claim();
+        await tx.wait();
+        alert("Funds claimed");
+        }catch(err){
+            alert("Error: "+err.message);
+        }
+    }
+
+    async function deploySwitch(){
+        try{
+            const interval = document.getElementById("intervalInput").value;
+            const grace = document.getElementById("graceInput").value;
+            const tx= await factoryContract.createSwitch(interval, grace);
+            await tx.wait();
+            alert("New switch deployed!");
+            await listSwitches();
+        }catch(err){
+            alert("Error:"+err.message);
+        }
+    }
+
+    async function listSwitches(){
+        try{
+            const address = await signer.getAddress();
+            const switches = await factoryContract.getSwitchesByOwner(address);
+            const list = document.getElementById("switchList");
+            list.innerHTML="";
+            if(switches.length===0){
+                list.textContent="No switches found";
+                return;
+            }
+            switches.forEach(sw => {
+                const div = document.createElement("div");
+                div.style.padding="5px";
+                div.style.margin="5px 0";
+                div.style.background="#0f3460";
+                div.style.borderRadius="5px";
+                div.style.wordBreak="break-all";
+                div.textContent=sw;
+                list.appendChild(div);                
+            });
+        }catch(err){
+            alert("Error: "+err.message);
+        }
+    }
+
+    document.getElementById("connectBtn").addEventListener("click", connectWallet);
+    document.getElementById("checkInBtn").addEventListener("click", checkIn);
+    document.getElementById("depositBtn").addEventListener("click", depositETH);
+    document.getElementById("addBeneficiaryBtn").addEventListener("click", addBeneficiary);
+    document.getElementById("removeBeneficiaryBtn").addEventListener("click", removeBeneficiary);
+    document.getElementById("cancelBtn").addEventListener("click", cancelSwitch);
+    document.getElementById("lookupBtn").addEventListener("click", lookupContract);
+    document.getElementById("claimBtn").addEventListener("click", claimFunds);
+    document.getElementById("deployBtn").addEventListener("click", deploySwitch);
+    document.getElementById("listSwitchesBtn").addEventListener("click", listSwitches);
+    </script>
+    </body>
+</html>
